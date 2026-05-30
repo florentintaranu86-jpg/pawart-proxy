@@ -82,24 +82,34 @@ app.post('/generate', async (req, res) => {
       return res.status(500).json({ error: 'Eroare Replicate: ' + JSON.stringify(prediction) });
     }
  
+    // Helper să extragem URL din output (string sau array)
+    function extractUrl(output) {
+      if (!output) return null;
+      if (typeof output === 'string') return output;
+      if (Array.isArray(output)) return output[0];
+      return null;
+    }
+ 
     // Dacă Prefer:wait a returnat direct rezultatul
     if (prediction.status === 'succeeded') {
-      const result = prediction.output?.[0] || prediction.output;
+      const result = extractUrl(prediction.output);
+      console.log('Succedat direct:', result);
       return res.json({ image_url: result });
     }
  
     // Altfel polling
     let result = null;
     for (let i = 0; i < 60; i++) {
-      await new Promise(r => setTimeout(r, 2000));
+      await new Promise(r => setTimeout(r, 3000));
  
       const pollRes = await fetch(`https://api.replicate.com/v1/predictions/${prediction.id}`, {
         headers: { 'Authorization': `Bearer ${REPLICATE_API_KEY}` }
       });
       const pollData = await pollRes.json();
+      console.log(`Poll ${i}: status=${pollData.status}, output=${JSON.stringify(pollData.output)}`);
  
       if (pollData.status === 'succeeded') {
-        result = pollData.output?.[0] || pollData.output;
+        result = extractUrl(pollData.output);
         break;
       }
       if (pollData.status === 'failed') {
@@ -111,6 +121,7 @@ app.post('/generate', async (req, res) => {
       return res.status(500).json({ error: 'Timeout — încearcă din nou' });
     }
  
+    console.log('Rezultat final:', result);
     res.json({ image_url: result });
  
   } catch (err) {
