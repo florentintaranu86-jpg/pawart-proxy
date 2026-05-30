@@ -1,9 +1,43 @@
+
 const express = require('express');
 const cors = require('cors');
 const app = express();
  
 app.use(cors());
 app.use(express.json({ limit: '20mb' }));
+ 
+// ══════════════════════════════════════════
+//  RATE LIMITING — max 10 generări/IP/oră
+// ══════════════════════════════════════════
+const rateLimitMap = new Map();
+ 
+function rateLimit(req, res, next) {
+  const ip = req.headers['x-forwarded-for'] || req.ip;
+  const now = Date.now();
+  const windowMs = 24 * 60 * 60 * 1000; // 24 ore
+  const maxRequests = 3; // max 3 generări per IP per zi
+ 
+  if (!rateLimitMap.has(ip)) {
+    rateLimitMap.set(ip, { count: 1, resetAt: now + windowMs });
+    return next();
+  }
+ 
+  const data = rateLimitMap.get(ip);
+ 
+  if (now > data.resetAt) {
+    rateLimitMap.set(ip, { count: 1, resetAt: now + windowMs });
+    return next();
+  }
+ 
+  if (data.count >= maxRequests) {
+    return res.status(429).json({
+      error: 'Prea multe generări. Încearcă din nou peste o oră.'
+    });
+  }
+ 
+  data.count++;
+  next();
+}
  
 // ══════════════════════════════════════════
 //  PROMPTURI REALE — 100% server-side, invizibile
@@ -40,7 +74,7 @@ const REPLICATE_MODEL = "zsxkib/instant-id:a8ff89f2c89255dc26af7c3f5f5ad8a956e4c
 // ══════════════════════════════════════════
 //  ENDPOINT
 // ══════════════════════════════════════════
-app.post('/generate', async (req, res) => {
+app.post('/generate', rateLimit, async (req, res) => {
   try {
     const { style_id, image_base64, email, pet_name, special_request } = req.body;
  
