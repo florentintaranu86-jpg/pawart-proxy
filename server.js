@@ -58,19 +58,20 @@ app.post('/generate', async (req, res) => {
       return res.status(500).json({ error: 'API key lipsă pe server' });
     }
  
-    const replicateRes = await fetch('https://api.replicate.com/v1/predictions', {
+    const replicateRes = await fetch('https://api.replicate.com/v1/models/black-forest-labs/flux-2-pro/predictions', {
       method: 'POST',
       headers: {
-        'Authorization': `Token ${REPLICATE_API_KEY}`,
-        'Content-Type': 'application/json'
+        'Authorization': `Bearer ${REPLICATE_API_KEY}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'wait'
       },
       body: JSON.stringify({
-        version: "a8ff89f2c89255dc26af7c3f5f5ad8a956e4cfc5d1f0283e76b4b009ffcf0e48",
         input: {
           prompt: prompt,
-          image: `data:image/jpeg;base64,${image_base64}`,
-          num_inference_steps: 30,
-          guidance_scale: 7.5
+          input_images: [`data:image/jpeg;base64,${image_base64}`],
+          aspect_ratio: "1:1",
+          resolution: "2 MP",
+          output_format: "png"
         }
       })
     });
@@ -81,13 +82,19 @@ app.post('/generate', async (req, res) => {
       return res.status(500).json({ error: 'Eroare Replicate: ' + JSON.stringify(prediction) });
     }
  
-    // Polling
+    // Dacă Prefer:wait a returnat direct rezultatul
+    if (prediction.status === 'succeeded') {
+      const result = prediction.output?.[0] || prediction.output;
+      return res.json({ image_url: result });
+    }
+ 
+    // Altfel polling
     let result = null;
     for (let i = 0; i < 60; i++) {
       await new Promise(r => setTimeout(r, 2000));
  
       const pollRes = await fetch(`https://api.replicate.com/v1/predictions/${prediction.id}`, {
-        headers: { 'Authorization': `Token ${REPLICATE_API_KEY}` }
+        headers: { 'Authorization': `Bearer ${REPLICATE_API_KEY}` }
       });
       const pollData = await pollRes.json();
  
