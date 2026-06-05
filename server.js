@@ -103,7 +103,7 @@ app.post('/generate', rateLimit, async (req, res) => {
         input: {
           prompt: prompt,
           input_images: [`data:image/jpeg;base64,${image_base64}`],
-          aspect_ratio: "1:1",
+          aspect_ratio: "2:3",
           resolution: "1 MP",
           output_format: "png"
         }
